@@ -14,10 +14,13 @@ public class ChatroomModel {
     String groupName;
     boolean isGroupChat;
     Map<String, Boolean> customNotificationStatus;
-    String pinnedMessageId; // Novo campo para a mensagem fixada
+    String pinnedMessageId;
 
     public ChatroomModel() {
-        customNotificationStatus = new HashMap<>();
+        // Construtor padrão agora inicializa os campos para evitar valores nulos
+        this.lastMessageTimestamp = Timestamp.now();
+        this.lastMessage = "";
+        this.customNotificationStatus = new HashMap<>();
     }
 
     public ChatroomModel(String chatroomId, List<String> userIds, Timestamp lastMessageTimestamp, String lastMessageSenderId, String groupName, boolean isGroupChat) {
@@ -27,20 +30,18 @@ public class ChatroomModel {
         this.lastMessageSenderId = lastMessageSenderId;
         this.groupName = groupName;
         this.isGroupChat = isGroupChat;
+        this.lastMessage = ""; // Garante que nunca seja nulo
         this.customNotificationStatus = new HashMap<>();
-        this.pinnedMessageId = null; // Valor padrão
+        this.pinnedMessageId = null;
     }
 
-    // Getter e Setter para o novo campo
+    // Getters e Setters
     public String getPinnedMessageId() {
         return pinnedMessageId;
     }
-
     public void setPinnedMessageId(String pinnedMessageId) {
         this.pinnedMessageId = pinnedMessageId;
     }
-
-    // Getters e Setters existentes
     public Map<String, Boolean> getCustomNotificationStatus() { return customNotificationStatus; }
     public void setCustomNotificationStatus(Map<String, Boolean> customNotificationStatus) { this.customNotificationStatus = customNotificationStatus; }
     public String getChatroomId() { return chatroomId; }

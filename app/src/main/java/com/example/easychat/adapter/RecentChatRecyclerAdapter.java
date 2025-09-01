@@ -3,7 +3,6 @@ package com.example.easychat.adapter;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -55,8 +54,8 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
             holder.itemView.setOnClickListener(v -> {
                 Intent intent = new Intent(context, ChatActivity.class);
                 intent.putExtra("chatroomId", model.getChatroomId());
-                intent.putExtra("isGroupChat", true); // Informa que é um grupo
-                intent.putExtra("groupName", model.getGroupName()); // Passa o nome do grupo
+                intent.putExtra("isGroupChat", true);
+                intent.putExtra("groupName", model.getGroupName());
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 context.startActivity(intent);
             });
@@ -83,11 +82,14 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
                                 break;
                         }
 
+                        // --- CORREÇÃO DO ERRO StorageException ---
                         FirebaseUtil.getOtherProfilePicStorageRef(otherUserModel.getUserId()).getDownloadUrl()
                                 .addOnCompleteListener(t -> {
-                                    if (t.isSuccessful()) {
-                                        AndroidUtil.setProfilePic(context, t.getResult(), holder.profilePic);
+                                    if (t.isSuccessful() && t.getResult() != null) {
+                                        Uri uri = t.getResult();
+                                        AndroidUtil.setProfilePic(context, uri, holder.profilePic);
                                     }
+                                    // Se a tarefa falhar, o erro é ignorado, mantendo a imagem padrão.
                                 });
 
                         holder.attachChatroomListener(model.getChatroomId(), otherUserModel.getUserId());

@@ -13,6 +13,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -30,10 +32,14 @@ import com.example.easychat.utils.AndroidUtil;
 import com.example.easychat.utils.FirebaseUtil;
 import com.firebase.ui.firestore.FirestoreRecyclerOptions;
 import com.github.dhaval2404.imagepicker.ImagePicker;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.Timestamp;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.WriteBatch;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -80,6 +86,16 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
     TextView pinnedMessageText;
     ImageButton unpinBtn;
 
+    // UI para pesquisa no chat
+    ImageButton chatSearchBtn;
+    RelativeLayout inChatSearchBar;
+    EditText inChatSearchInput;
+    ImageButton searchUpBtn;
+    ImageButton searchDownBtn;
+    private List<String> searchResults = new ArrayList<>();
+    private int currentSearchIndex = -1;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -98,6 +114,13 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         pinnedMessageLayout = findViewById(R.id.pinned_message_layout);
         pinnedMessageText = findViewById(R.id.pinned_message_text);
         unpinBtn = findViewById(R.id.unpin_btn);
+
+        // Inicialização dos componentes de pesquisa
+        chatSearchBtn = findViewById(R.id.chat_search_btn);
+        inChatSearchBar = findViewById(R.id.in_chat_search_bar);
+        inChatSearchInput = findViewById(R.id.in_chat_search_input);
+        searchUpBtn = findViewById(R.id.search_up_btn);
+        searchDownBtn = findViewById(R.id.search_down_btn);
 
         // Verifica se é um grupo ou chat individual
         isGroupChat = getIntent().getBooleanExtra("isGroupChat", false);
@@ -134,9 +157,85 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
             }
         });
 
+        // Lógica do botão de pesquisa
+        chatSearchBtn.setOnClickListener(v -> {
+            if (inChatSearchBar.getVisibility() == View.VISIBLE) {
+                inChatSearchBar.setVisibility(View.GONE);
+                searchResults.clear();
+                currentSearchIndex = -1;
+                adapter.highlightMessage(null);
+            } else {
+                inChatSearchBar.setVisibility(View.VISIBLE);
+            }
+        });
+
+        // Lógica de busca e navegação
+        setupSearchFunctionality();
+
         getOrCreateChatroomModel();
         setupChatRecyclerView();
     }
+
+    private void setupSearchFunctionality() {
+        inChatSearchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() > 0) {
+                    searchInChat(s.toString().toLowerCase());
+                } else {
+                    searchResults.clear();
+                    currentSearchIndex = -1;
+                    adapter.highlightMessage(null);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        searchUpBtn.setOnClickListener(v -> navigateSearchResults(false));
+        searchDownBtn.setOnClickListener(v -> navigateSearchResults(true));
+    }
+
+    private void searchInChat(String searchTerm) {
+        FirebaseUtil.getChatroomMessageReference(chatroomId)
+                .whereArrayContains("searchKeywords", searchTerm)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    searchResults.clear();
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        searchResults.add(doc.getId());
+                    }
+                    currentSearchIndex = -1;
+                    if (!searchResults.isEmpty()) {
+                        navigateSearchResults(true);
+                    } else {
+                        adapter.highlightMessage(null);
+                        Toast.makeText(ChatActivity.this, "Nenhuma mensagem encontrada", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void navigateSearchResults(boolean down) {
+        if (searchResults.isEmpty()) return;
+
+        if (down) {
+            currentSearchIndex++;
+            if (currentSearchIndex >= searchResults.size()) {
+                currentSearchIndex = 0;
+            }
+        } else {
+            currentSearchIndex--;
+            if (currentSearchIndex < 0) {
+                currentSearchIndex = searchResults.size() - 1;
+            }
+        }
+        scrollToMessage(searchResults.get(currentSearchIndex));
+    }
+
 
     @Override
     protected void onResume() {
@@ -244,7 +343,6 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         if (position != -1) {
             recyclerView.smoothScrollToPosition(position);
             adapter.highlightMessage(messageId);
-            new Handler().postDelayed(() -> adapter.highlightMessage(null), 2000);
         } else {
             Toast.makeText(this, "Message not found.", Toast.LENGTH_SHORT).show();
         }
@@ -290,11 +388,14 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
     private void getOrCreateChatroomModel() {
         FirebaseUtil.getChatroomReference(chatroomId).addSnapshotListener((snapshot, e) -> {
             if (e != null) {
+                Log.e("ChatActivity", "Error listening to chatroom model", e);
                 return;
             }
             if (snapshot != null && snapshot.exists()) {
                 chatroomModel = snapshot.toObject(ChatroomModel.class);
             } else {
+                // Se a sala não existe, só criamos UMA VEZ para chats individuais.
+                // Grupos NUNCA devem ser criados a partir desta tela.
                 if(!isGroupChat) {
                     chatroomModel = new ChatroomModel(
                             chatroomId,
@@ -304,7 +405,7 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
                     );
                     FirebaseUtil.getChatroomReference(chatroomId).set(chatroomModel)
                             .addOnSuccessListener(aVoid -> {
-                                // NOVO: Adicionar usuários à lista de contatos um do outro
+                                // Adicionar usuários à lista de contatos um do outro
                                 addContact(FirebaseUtil.currentUserId(), otherUser.getUserId());
                                 addContact(otherUser.getUserId(), FirebaseUtil.currentUserId());
                             });
@@ -316,20 +417,10 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
     }
 
     private void addContact(String userId, String contactId) {
-        FirebaseUtil.allUserCollectionReference().document(userId).get().addOnSuccessListener(documentSnapshot -> {
-            UserModel user = documentSnapshot.toObject(UserModel.class);
-            if (user != null) {
-                List<String> contacts = user.getContacts();
-                if (contacts == null) {
-                    contacts = new ArrayList<>();
-                }
-                if (!contacts.contains(contactId)) {
-                    contacts.add(contactId);
-                    user.setContacts(contacts);
-                    FirebaseUtil.allUserCollectionReference().document(userId).set(user);
-                }
-            }
-        });
+        if (userId == null || contactId == null) return;
+        DocumentReference userDocRef = FirebaseUtil.allUserCollectionReference().document(userId);
+        // Usa arrayUnion para adicionar o contato de forma atômica, evitando duplicatas
+        userDocRef.update("contacts", FieldValue.arrayUnion(contactId));
     }
 
 
