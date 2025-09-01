@@ -1,6 +1,7 @@
 package com.example.easychat;
 
 import android.os.Bundle;
+import android.util.Log; // Adicione este import
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -23,10 +24,11 @@ public class ChatFragment extends Fragment {
 
     public ChatFragment() {
     }
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View view =  inflater.inflate(R.layout.fragment_chat, container, false);
+        View view = inflater.inflate(R.layout.fragment_chat, container, false);
         recyclerView = view.findViewById(R.id.recyler_view);
         setupRecyclerView();
 
@@ -34,39 +36,48 @@ public class ChatFragment extends Fragment {
     }
 
     void setupRecyclerView(){
-
         Query query = FirebaseUtil.allChatroomCollectionReference()
-                .whereArrayContains("userIds",FirebaseUtil.currentUserId())
-                .orderBy("lastMessageTimestamp",Query.Direction.DESCENDING);
+                .whereArrayContains("userIds", FirebaseUtil.currentUserId())
+                .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING);
+
+        query.get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                Log.d("ChatFragment", "Query returned " + task.getResult().size() + " documents.");
+                for (int i = 0; i < task.getResult().size(); i++) {
+                    ChatroomModel chatroom = task.getResult().getDocuments().get(i).toObject(ChatroomModel.class);
+                    Log.d("ChatFragment", "Found chatroom: " + chatroom.getGroupName() + " with members: " + chatroom.getUserIds());
+                }
+            } else {
+                Log.e("ChatFragment", "Query failed with exception: ", task.getException());
+            }
+        });
 
         FirestoreRecyclerOptions<ChatroomModel> options = new FirestoreRecyclerOptions.Builder<ChatroomModel>()
-                .setQuery(query,ChatroomModel.class).build();
-
-        adapter = new RecentChatRecyclerAdapter(options,getContext());
+                .setQuery(query, ChatroomModel.class).build();
+        adapter = new RecentChatRecyclerAdapter(options, getContext());
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
         adapter.startListening();
-
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        if(adapter!=null)
+        if(adapter != null)
             adapter.startListening();
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        if(adapter!=null)
+        if(adapter != null)
             adapter.stopListening();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if(adapter!=null)
+        if(adapter != null)
             adapter.notifyDataSetChanged();
     }
 }

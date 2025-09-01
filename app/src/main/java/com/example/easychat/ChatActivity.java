@@ -95,7 +95,6 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
     private List<String> searchResults = new ArrayList<>();
     private int currentSearchIndex = -1;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -122,11 +121,13 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         searchUpBtn = findViewById(R.id.search_up_btn);
         searchDownBtn = findViewById(R.id.search_down_btn);
 
-        // Verifica se é um grupo ou chat individual
+        // Verifica se é um grupo ou chat individual - IMPLEMENTAÇÃO MELHORADA
         isGroupChat = getIntent().getBooleanExtra("isGroupChat", false);
         if (isGroupChat) {
             groupName = getIntent().getStringExtra("groupName");
             chatroomId = getIntent().getStringExtra("chatroomId");
+            // Para grupos, não temos um "otherUser"
+            otherUser = null;
         } else {
             otherUser = AndroidUtil.getUserModelFromIntent(getIntent());
             chatroomId = FirebaseUtil.getChatroomId(FirebaseUtil.currentUserId(), otherUser.getUserId());
@@ -236,14 +237,15 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         scrollToMessage(searchResults.get(currentSearchIndex));
     }
 
-
     @Override
     protected void onResume() {
         super.onResume();
         if(chatroomId != null) {
             ChatActivityState.setActiveChatroomId(chatroomId);
             cancelNotification();
-            setupUnreadMessagesListener();
+            if (!isGroupChat) {
+                setupUnreadMessagesListener();
+            }
         }
     }
 
@@ -343,6 +345,7 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         if (position != -1) {
             recyclerView.smoothScrollToPosition(position);
             adapter.highlightMessage(messageId);
+            new Handler().postDelayed(() -> adapter.highlightMessage(null), 2000);
         } else {
             Toast.makeText(this, "Message not found.", Toast.LENGTH_SHORT).show();
         }
@@ -422,7 +425,6 @@ public class ChatActivity extends AppCompatActivity implements ChatRecyclerAdapt
         // Usa arrayUnion para adicionar o contato de forma atômica, evitando duplicatas
         userDocRef.update("contacts", FieldValue.arrayUnion(contactId));
     }
-
 
     private void updateToolbarUI() {
         if (isGroupChat) {

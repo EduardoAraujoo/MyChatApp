@@ -35,6 +35,11 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
     protected void onBindViewHolder(@NonNull ChatroomModelViewHolder holder, int position, @NonNull ChatroomModel model) {
         holder.removeListeners();
 
+        // --- CORREÇÃO: PASSO 1 ---
+        // Aplica um fundo padrão para TODOS os itens (grupos e conversas privadas).
+        // Isso garante que nenhum item será invisível.
+        holder.itemView.setBackground(ContextCompat.getDrawable(holder.itemView.getContext(), R.drawable.edit_text_rounded_corner));
+
         String lastMessage = model.getLastMessage() != null ? model.getLastMessage() : "";
         boolean lastMessageSentByMe = model.getLastMessageSenderId() != null && model.getLastMessageSenderId().equals(FirebaseUtil.currentUserId());
 
@@ -46,10 +51,11 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
         holder.lastMessageTime.setText(FirebaseUtil.timestampToString(model.getLastMessageTimestamp()));
 
         if (model.isGroupChat()) {
+            // Lógica para grupos (agora vai funcionar pois o fundo já foi aplicado)
             holder.usernameText.setText(model.getGroupName());
             holder.profilePic.setImageResource(R.drawable.chat_icon);
             holder.statusIndicator.setVisibility(View.GONE);
-            holder.unreadCountText.setVisibility(View.GONE);
+            holder.unreadCountText.setVisibility(View.GONE); // Lembre-se que a contagem de mensagens não lidas para grupos não está implementada
 
             holder.itemView.setOnClickListener(v -> {
                 Intent intent = new Intent(context, ChatActivity.class);
@@ -60,6 +66,7 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
                 context.startActivity(intent);
             });
         } else {
+            // Lógica para conversas privadas
             FirebaseUtil.getOtherUserFromChatroom(model.getUserIds())
                     .get().addOnSuccessListener(documentSnapshot -> {
                         if (!documentSnapshot.exists()) return;
@@ -82,15 +89,14 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
                                 break;
                         }
 
-                        // --- CORREÇÃO DO ERRO StorageException ---
                         FirebaseUtil.getOtherProfilePicStorageRef(otherUserModel.getUserId()).getDownloadUrl()
                                 .addOnSuccessListener(uri -> {
                                     AndroidUtil.setProfilePic(context, uri, holder.profilePic);
                                 }).addOnFailureListener(e -> {
-                                    // Se a foto não existir, o ícone padrão será mantido.
                                     holder.profilePic.setImageResource(R.drawable.person_icon);
                                 });
 
+                        // A lógica do listener que antes definia o fundo agora só vai cuidar do DESTAQUE
                         holder.attachChatroomListener(model.getChatroomId(), otherUserModel.getUserId());
 
                         holder.itemView.setOnClickListener(v -> {
@@ -102,7 +108,6 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
                     });
         }
     }
-
     @NonNull
     @Override
     public ChatroomModelViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
