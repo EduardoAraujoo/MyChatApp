@@ -48,10 +48,18 @@ public class SelectGroupMembersActivity extends AppCompatActivity {
 
         nextButton.setOnClickListener(v -> {
             ArrayList<String> selectedIds = adapter.getSelectedUserIds();
-            if (selectedIds.isEmpty()) {
-                Toast.makeText(this, "Select at least 1 member to add", Toast.LENGTH_SHORT).show();
+
+            // LÓGICA DE VALIDAÇÃO MELHORADA
+            if (chatroomId == null && selectedIds.isEmpty()) {
+                // Se estiver criando um novo grupo, precisa de pelo menos 1 membro
+                Toast.makeText(this, "Selecione pelo menos 1 membro para criar o grupo", Toast.LENGTH_SHORT).show();
+                return;
+            } else if (chatroomId != null && selectedIds.isEmpty()) {
+                // Se estiver adicionando a um grupo existente, precisa selecionar alguém
+                Toast.makeText(this, "Selecione pelo menos 1 membro para adicionar", Toast.LENGTH_SHORT).show();
                 return;
             }
+
 
             if (chatroomId != null) {
                 addMembersToGroup(selectedIds);
@@ -72,7 +80,7 @@ public class SelectGroupMembersActivity extends AppCompatActivity {
                 chatroomModel.setUserIds(updatedUserIds);
 
                 FirebaseUtil.getChatroomReference(chatroomId).set(chatroomModel).addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Members added successfully", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Membros adicionados com sucesso", Toast.LENGTH_SHORT).show();
                     finish();
                 });
             }

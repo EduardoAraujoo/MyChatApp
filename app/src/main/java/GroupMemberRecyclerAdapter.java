@@ -45,12 +45,15 @@ public class GroupMemberRecyclerAdapter extends RecyclerView.Adapter<GroupMember
                 if (userModel == null) return;
 
                 holder.usernameText.setText(userModel.getUsername());
+
+                // --- CORREÇÃO DEFINITIVA DA StorageException ---
                 FirebaseUtil.getOtherProfilePicStorageRef(userModel.getUserId()).getDownloadUrl()
-                        .addOnCompleteListener(t -> {
-                            if (t.isSuccessful()) {
-                                Uri uri = t.getResult();
-                                AndroidUtil.setProfilePic(context, uri, holder.profilePic);
-                            }
+                        .addOnSuccessListener(uri -> {
+                            // Se a foto existir, carrega com Glide
+                            AndroidUtil.setProfilePic(context, uri, holder.profilePic);
+                        }).addOnFailureListener(e -> {
+                            // Se a foto não existir, usa o ícone padrão
+                            holder.profilePic.setImageResource(R.drawable.person_icon);
                         });
 
                 // Esconder o botão de remover para o próprio usuário
@@ -76,7 +79,6 @@ public class GroupMemberRecyclerAdapter extends RecyclerView.Adapter<GroupMember
                 });
     }
 
-    // MÉTODO NOVO ADICIONADO AQUI
     public void updateMembers(List<String> newMemberIds) {
         this.memberIds = newMemberIds;
         notifyDataSetChanged();

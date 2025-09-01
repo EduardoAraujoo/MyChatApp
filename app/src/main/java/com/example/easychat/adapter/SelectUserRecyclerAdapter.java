@@ -46,16 +46,14 @@ public class SelectUserRecyclerAdapter extends FirestoreRecyclerAdapter<UserMode
         holder.usernameText.setText(model.getUsername());
         holder.phoneText.setText(model.getPhone());
 
-        // --- CORREÇÃO DO ERRO StorageException ---
-        // A foto de perfil só é carregada se o usuário tiver uma.
+        // --- CORREÇÃO DEFINITIVA DA StorageException ---
         FirebaseUtil.getOtherProfilePicStorageRef(model.getUserId()).getDownloadUrl()
-                .addOnCompleteListener(t -> {
-                    if (t.isSuccessful()) {
-                        Uri uri = t.getResult();
-                        AndroidUtil.setProfilePic(context, uri, holder.profilePic);
-                    }
-                    // Se a tarefa falhar (t.isSuccessful() for falso), nenhuma ação é tomada,
-                    // e a imagem padrão (person_icon) será mantida, evitando o crash.
+                .addOnSuccessListener(uri -> {
+                    // Se a foto existir, carrega com Glide
+                    AndroidUtil.setProfilePic(context, uri, holder.profilePic);
+                }).addOnFailureListener(e -> {
+                    // Se a foto não existir, usa o ícone padrão
+                    holder.profilePic.setImageResource(R.drawable.person_icon);
                 });
 
         holder.checkBox.setChecked(selectedUserIds.contains(model.getUserId()));

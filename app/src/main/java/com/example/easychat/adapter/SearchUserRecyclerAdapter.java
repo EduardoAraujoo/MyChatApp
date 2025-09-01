@@ -65,12 +65,12 @@ public class SearchUserRecyclerAdapter extends FirestoreRecyclerAdapter<UserMode
             holder.checkmarkIcon.setVisibility(View.GONE);
         }
 
+        // --- CORREÇÃO DO ERRO StorageException ---
         FirebaseUtil.getOtherProfilePicStorageRef(model.getUserId()).getDownloadUrl()
-                .addOnCompleteListener(t -> {
-                    if(t.isSuccessful()){
-                        Uri uri  = t.getResult();
-                        AndroidUtil.setProfilePic(context,uri,holder.profilePic);
-                    }
+                .addOnSuccessListener(uri -> {
+                    AndroidUtil.setProfilePic(context, uri, holder.profilePic);
+                }).addOnFailureListener(e -> {
+                    holder.profilePic.setImageResource(R.drawable.person_icon);
                 });
 
         holder.itemView.setOnClickListener(v -> {

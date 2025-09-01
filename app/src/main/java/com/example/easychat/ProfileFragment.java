@@ -258,13 +258,12 @@ public class ProfileFragment extends Fragment {
 
     void getUserData(){
         setInProgress(true);
+
+        // --- CORREÇÃO DO ERRO StorageException ---
         FirebaseUtil.getCurrentProfilePicStorageRef().getDownloadUrl()
-                .addOnCompleteListener(task -> {
-                    if(task.isSuccessful()){
-                        Uri uri  = task.getResult();
-                        AndroidUtil.setProfilePic(getContext(),uri,profilePic);
-                    }
-                });
+                .addOnSuccessListener(uri -> {
+                    AndroidUtil.setProfilePic(getContext(), uri, profilePic);
+                }); // Não é necessário addOnFailureListener, pois o ícone padrão já está lá.
 
         FirebaseUtil.currentUserDetails().get().addOnCompleteListener(task -> {
             setInProgress(false);

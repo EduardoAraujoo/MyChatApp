@@ -84,12 +84,11 @@ public class RecentChatRecyclerAdapter extends FirestoreRecyclerAdapter<Chatroom
 
                         // --- CORREÇÃO DO ERRO StorageException ---
                         FirebaseUtil.getOtherProfilePicStorageRef(otherUserModel.getUserId()).getDownloadUrl()
-                                .addOnCompleteListener(t -> {
-                                    if (t.isSuccessful() && t.getResult() != null) {
-                                        Uri uri = t.getResult();
-                                        AndroidUtil.setProfilePic(context, uri, holder.profilePic);
-                                    }
-                                    // Se a tarefa falhar, o erro é ignorado, mantendo a imagem padrão.
+                                .addOnSuccessListener(uri -> {
+                                    AndroidUtil.setProfilePic(context, uri, holder.profilePic);
+                                }).addOnFailureListener(e -> {
+                                    // Se a foto não existir, o ícone padrão será mantido.
+                                    holder.profilePic.setImageResource(R.drawable.person_icon);
                                 });
 
                         holder.attachChatroomListener(model.getChatroomId(), otherUserModel.getUserId());

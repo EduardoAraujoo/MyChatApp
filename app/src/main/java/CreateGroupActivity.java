@@ -18,6 +18,7 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.WriteBatch;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class CreateGroupActivity extends AppCompatActivity {
 
@@ -37,13 +38,18 @@ public class CreateGroupActivity extends AppCompatActivity {
 
         memberIds = getIntent().getStringArrayListExtra("userIds");
 
+        // Verificação para garantir que a lista de membros não seja nula
+        if (memberIds == null) {
+            memberIds = new ArrayList<>();
+        }
+
         createGroupBtn.setOnClickListener(v -> handleCreateGroup());
     }
 
     private void handleCreateGroup() {
         String groupName = groupNameInput.getText().toString().trim();
         if (groupName.isEmpty() || groupName.length() < 3) {
-            groupNameInput.setError("Group name must be at least 3 characters");
+            groupNameInput.setError("O nome do grupo deve ter pelo menos 3 caracteres");
             return;
         }
         setInProgress(true);
@@ -55,54 +61,58 @@ public class CreateGroupActivity extends AppCompatActivity {
                     createGroupWithBatch(groupName, currentUser.getUsername());
                 } else {
                     setInProgress(false);
-                    Toast.makeText(this, "Failed to retrieve user details.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Falha ao obter detalhes do usuário.", Toast.LENGTH_SHORT).show();
                 }
             } else {
                 setInProgress(false);
-                Toast.makeText(this, "Failed to retrieve user details.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Falha ao obter detalhes do usuário.", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     private void createGroupWithBatch(String groupName, String creatorName) {
-        ArrayList<String> finalMemberIds = new ArrayList<>();
-        if (memberIds != null) {
-            finalMemberIds.addAll(memberIds);
+        // PASSO 1: Criar a lista final de membros, garantindo que o criador esteja nela.
+        List<String> finalMemberIds = new ArrayList<>(memberIds);
+        if (!finalMemberIds.contains(FirebaseUtil.currentUserId())) {
+            finalMemberIds.add(FirebaseUtil.currentUserId());
         }
-        finalMemberIds.add(FirebaseUtil.currentUserId());
 
+        // PASSO 2: Criar uma referência para o novo documento da sala de chat.
         DocumentReference chatroomRef = FirebaseUtil.allChatroomCollectionReference().document();
         String chatroomId = chatroomRef.getId();
         Timestamp creationTimestamp = Timestamp.now();
         String initialMessage = creatorName + " criou o grupo";
 
-        ChatroomModel chatroomModel = new ChatroomModel(
-                chatroomId,
-                finalMemberIds,
-                creationTimestamp,
-                FirebaseUtil.currentUserId(),
-                groupName,
-                true
-        );
+        // PASSO 3: Construir o objeto ChatroomModel de forma explícita.
+        ChatroomModel chatroomModel = new ChatroomModel();
+        chatroomModel.setChatroomId(chatroomId);
+        chatroomModel.setUserIds(finalMemberIds); // USA A LISTA COMPLETA
+        chatroomModel.setLastMessageTimestamp(creationTimestamp);
+        chatroomModel.setLastMessageSenderId(FirebaseUtil.currentUserId());
+        chatroomModel.setGroupName(groupName);
+        chatroomModel.setGroupChat(true); // DEFINE EXPLÍCITAMENTE COMO GRUPO
         chatroomModel.setLastMessage(initialMessage);
 
+        // PASSO 4: Criar a mensagem inicial do sistema.
         ChatMessageModel creationMessage = new ChatMessageModel(initialMessage, FirebaseUtil.currentUserId(), creationTimestamp, ChatMessageModel.STATUS_SENT, new ArrayList<>(), "text");
         DocumentReference messageRef = FirebaseUtil.getChatroomMessageReference(chatroomId).document();
 
+        // PASSO 5: Usar um WriteBatch para garantir que ambas as operações sejam atômicas.
         WriteBatch batch = FirebaseUtil.getFirestore().batch();
-        batch.set(chatroomRef, chatroomModel);
-        batch.set(messageRef, creationMessage);
+        batch.set(chatroomRef, chatroomModel);      // Operação 1: Criar o grupo
+        batch.set(messageRef, creationMessage); // Operação 2: Adicionar a mensagem inicial
 
+        // PASSO 6: Executar o batch.
         batch.commit().addOnCompleteListener(task -> {
             setInProgress(false);
             if (task.isSuccessful()) {
-                Toast.makeText(CreateGroupActivity.this, "Group created successfully", Toast.LENGTH_SHORT).show();
+                Toast.makeText(CreateGroupActivity.this, "Grupo criado com sucesso", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(CreateGroupActivity.this, MainActivity.class);
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
                 finish();
             } else {
-                Toast.makeText(CreateGroupActivity.this, "Failed to create group", Toast.LENGTH_SHORT).show();
+                Toast.makeText(CreateGroupActivity.this, "Falha ao criar o grupo", Toast.LENGTH_SHORT).show();
             }
         });
     }
